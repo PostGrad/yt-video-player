@@ -29,7 +29,7 @@ const Admin = () => {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to upload videos");
+        throw new Error("Failed to store videos");
       }
 
       setSuccess(true);
@@ -42,12 +42,13 @@ const Admin = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
+    <div className="bg-white rounded-lg shadow-lg p-6 font-mono">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Admin Dashboard</h1>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
           <p className="text-gray-600">
             Enter videos in the format: URL, category (one per line)
+            <br />
             <br />
             Example:
             <br />
@@ -61,21 +62,21 @@ const Admin = () => {
             onChange={(e) => setVideos(e.target.value)}
             rows={10}
             required
-            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
           />
         </div>
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-mono"
         >
           {loading ? (
             <div className="flex items-center justify-center">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-              Uploading...
+              Processing...
             </div>
           ) : (
-            "Upload Videos"
+            "Store in DB"
           )}
         </button>
       </form>
@@ -90,7 +91,7 @@ const Admin = () => {
       {success && (
         <div className="mt-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
           <p className="font-bold">Success</p>
-          <p>Videos uploaded successfully!</p>
+          <p>Videos stored successfully!</p>
         </div>
       )}
     </div>

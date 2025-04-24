@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Plyr from "plyr-react";
 import "plyr-react/plyr.css";
 
@@ -6,6 +6,8 @@ const CategoryPlayer = ({ category }) => {
   const [currentVideo, setCurrentVideo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [playerReady, setPlayerReady] = useState(false);
+  const playerRef = useRef(null);
 
   const fetchNextVideo = async () => {
     try {
@@ -27,6 +29,57 @@ const CategoryPlayer = ({ category }) => {
   useEffect(() => {
     fetchNextVideo();
   }, [category]);
+
+  // Load YouTube IFrame API
+  useEffect(() => {
+    const loadYouTubeAPI = () => {
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName("script")[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    };
+
+    if (!window.YT) {
+      loadYouTubeAPI();
+    }
+  }, []);
+
+  const handleReady = (player) => {
+    setPlayerReady(true);
+    if (player && player.play) {
+      try {
+        player.play().catch(() => {
+          console.log("Playback failed, trying again...");
+          setTimeout(() => {
+            player.play().catch(console.error);
+          }, 1000);
+        });
+      } catch (error) {
+        console.error("Error during play:", error);
+      }
+    }
+  };
+
+  const handlePlaying = (player) => {
+    if (!player || !playerReady) return;
+
+    try {
+      const playerElement = player.elements.container;
+      if (playerElement && document.fullscreenElement !== playerElement) {
+        setTimeout(() => {
+          if (playerElement.requestFullscreen) {
+            playerElement.requestFullscreen().catch(console.error);
+          } else if (playerElement.webkitRequestFullscreen) {
+            playerElement.webkitRequestFullscreen().catch(console.error);
+          } else if (playerElement.msRequestFullscreen) {
+            playerElement.msRequestFullscreen().catch(console.error);
+          }
+        }, 1000);
+      }
+    } catch (error) {
+      console.error("Error entering fullscreen:", error);
+    }
+  };
 
   if (loading) {
     return (
@@ -70,30 +123,47 @@ const CategoryPlayer = ({ category }) => {
         "settings",
         "fullscreen",
       ],
+      youtube: {
+        noCookie: true,
+        rel: 0,
+        showinfo: 0,
+        iv_load_policy: 3,
+        modestbranding: 1,
+        playsinline: 1,
+        autoplay: 1,
+      },
+      autoplay: true,
+      clickToPlay: false,
+      hideControls: true,
+    },
+    eventListeners: {
+      ready: handleReady,
+      playing: handlePlaying,
     },
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8">
-      <div className="container mx-auto px-4">
-        <h1 className="text-3xl font-bold text-center text-gray-800 mb-8">
-          {category.charAt(0).toUpperCase() + category.slice(1)} Videos
+    <div className="min-h-screen bg-gray-100 py-2 font-mono">
+      <div className="container mx-auto px-2">
+        <h1 className="text-xl font-bold text-center text-gray-800 mb-1 font-mono">
+          Swaminarayan {category.charAt(0).toUpperCase() + category.slice(1)}{" "}
+          Live TV
         </h1>
         {currentVideo ? (
-          <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
-            <Plyr {...plyrProps} />
+          <div className="bg-white rounded-lg shadow-lg">
+            <Plyr ref={playerRef} {...plyrProps} />
             <div className="mt-4">
-              <h2 className="text-lg font-semibold text-gray-800">
+              <h2 className="text-lg font-semibold text-gray-800 font-mono">
                 {currentVideo.title}
               </h2>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 font-mono">
                 {currentVideo.channelTitle}
               </p>
             </div>
           </div>
         ) : (
           <div className="text-center">
-            <p className="text-gray-600">No videos available</p>
+            <p className="text-gray-600 font-mono">No videos available</p>
           </div>
         )}
       </div>
