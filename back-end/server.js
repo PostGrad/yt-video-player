@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const pool = require("./config/db");
 const { extractVideoId, getVideoDetails } = require("./utils/youtube");
+const { bulkInsertVideos } = require("./utils/db-operations");
 require("dotenv").config();
 
 const app = express();
@@ -22,18 +23,34 @@ app.get("/api/videos/next", async (req, res) => {
       });
     }
 
-    // First, try to get the last played public video of the specified category
-    const lastPlayedResult = await pool.query(
-      `SELECT * FROM videos 
-       WHERE type = 'public' 
-       ${category ? "AND category = $1" : ""}
-       ORDER BY "lastPlayedAt" DESC 
-       LIMIT 1`,
-      category ? [category] : []
+    // First check if there are any videos with lastPlayedAt
+    const hasPlayedVideos = await pool.query(
+      `SELECT EXISTS (
+        SELECT 1 FROM videos 
+        WHERE type = 'public' 
+        AND category = $1 
+        AND "lastPlayedAt" IS NOT NULL
+      )`,
+      [category]
     );
+    console.log("hasPlayedVideos => ", hasPlayedVideos.rows);
+    // If no videos have been played yet, get the oldest public video by updatedAt
+    if (!hasPlayedVideos.rows[0].exists) {
+      const oldestVideo = await pool.query(
+        `SELECT * FROM videos 
+         WHERE category = $1 
+         ORDER BY "updatedAt" ASC
+         LIMIT 1`,
+        [category]
+      );
+      console.log("oldestVideo => ", oldestVideo.rows);
+      if (oldestVideo.rows.length === 0) {
+        return res.status(404).json({
+          message: `No ${category} videos available`,
+        });
+      }
 
-    if (lastPlayedResult.rows.length > 0) {
-      const video = lastPlayedResult.rows[0];
+      const video = oldestVideo.rows[0];
       // Update lastPlayedAt
       await pool.query(
         `UPDATE videos 
@@ -44,88 +61,77 @@ app.get("/api/videos/next", async (req, res) => {
       return res.json(video);
     }
 
-    // If no last played video, get any unprocessed video of the specified category
-    const nextVideoResult = await pool.query(
-      `SELECT * FROM videos 
-       WHERE type IS NULL 
-       ${category ? "AND category = $1" : ""}
-       ORDER BY "createdAt" ASC 
+    // Get the least recently played video
+    const leastRecentlyPlayed = await pool.query(
+      `SELECT *, 
+              EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - "lastPlayedAt")) as seconds_since_played
+       FROM videos 
+       WHERE type = 'public' 
+       AND category = $1 
+       AND "lastPlayedAt" IS NOT NULL
+       ORDER BY "lastPlayedAt" ASC, "createdAt" ASC 
        LIMIT 1`,
-      category ? [category] : []
+      [category]
     );
 
-    if (nextVideoResult.rows.length === 0) {
-      return res.status(404).json({
-        message: category
-          ? `No ${category} videos available`
-          : "No videos available",
-      });
-    }
-
-    const video = nextVideoResult.rows[0];
-
-    // Extract video ID from URL
-    const videoId = extractVideoId(video.url);
-    if (!videoId) {
-      // If invalid URL, mark as private and get next video
-      await pool.query(
-        `UPDATE videos 
-         SET type = 'private', 
-             "updatedAt" = CURRENT_TIMESTAMP 
-         WHERE id = $1`,
-        [video.id]
-      );
-      return app.get("/api/videos/next", req, res);
-    }
-
-    try {
-      // Get video details from YouTube API
-      const videoDetails = await getVideoDetails(
-        videoId,
-        process.env.YOUTUBE_API_KEY
+    // If the least recently played video was played within last 70 seconds
+    // try to find an unplayed video
+    if (leastRecentlyPlayed.rows[0].seconds_since_played <= 70) {
+      // Look for unplayed public videos
+      const unplayedVideo = await pool.query(
+        `SELECT * FROM videos 
+         WHERE type = 'public' 
+         AND category = $1 
+         AND "lastPlayedAt" IS NULL
+         ORDER BY "updatedAt" ASC, "createdAt" ASC 
+         LIMIT 1`,
+        [category]
       );
 
-      // Update video with type, length, and lastPlayedAt
-      await pool.query(
-        `UPDATE videos 
-         SET type = $1, 
-             length = $2, 
-             "lastPlayedAt" = CURRENT_TIMESTAMP,
-             "updatedAt" = CURRENT_TIMESTAMP
-         WHERE id = $3`,
-        [
-          videoDetails.isPublic ? "public" : "private",
-          videoDetails.length,
-          video.id,
-        ]
-      );
-
-      // If video is private, get next video
-      if (!videoDetails.isPublic) {
-        return app.get("/api/videos/next", req, res);
+      if (unplayedVideo.rows.length > 0) {
+        const video = unplayedVideo.rows[0];
+        // Update lastPlayedAt
+        await pool.query(
+          `UPDATE videos 
+           SET "lastPlayedAt" = CURRENT_TIMESTAMP 
+           WHERE id = $1`,
+          [video.id]
+        );
+        return res.json(video);
       }
 
-      // Return video with updated details
-      res.json({
-        ...video,
-        type: videoDetails.isPublic ? "public" : "private",
-        length: videoDetails.length,
-        title: videoDetails.title,
-        description: videoDetails.description,
-        channelTitle: videoDetails.channelTitle,
-      });
-    } catch (error) {
-      console.error("Error processing video:", error);
-      // If there's an error, mark as private and get next video
+      // If no unplayed videos, get the oldest updated video
+      const oldestUpdatedVideo = await pool.query(
+        `SELECT * FROM videos 
+         WHERE type = 'public' 
+         AND category = $1 
+         ORDER BY "updatedAt" ASC, "createdAt" ASC 
+         LIMIT 1`,
+        [category]
+      );
+
+      const video = oldestUpdatedVideo.rows[0];
+      // Update lastPlayedAt
       await pool.query(
         `UPDATE videos 
-         SET type = 'private', 
-             "updatedAt" = CURRENT_TIMESTAMP 
+         SET "lastPlayedAt" = CURRENT_TIMESTAMP 
          WHERE id = $1`,
         [video.id]
       );
-      return app.get("/api/videos/next", req, res);
+      return res.json(video);
     }
+
+    // If the least recently played video was played more than 70 seconds ago
+    // use it as the next video
+    const video = leastRecentlyPlayed.rows[0];
+    // Update lastPlayedAt
+    await pool.query(
+      `UPDATE videos 
+       SET "lastPlayedAt" = CURRENT_TIMESTAMP 
+       WHERE id = $1`,
+      [video.id]
+    );
+    return res.json(video);
   } catch (error) {
     console.error("Error fetching next video:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -133,9 +139,8 @@ app.get("/api/videos/next", async (req, res) => {
 });
 
 // Bulk insert videos
-app.post("/api/videos/bulk", async (req, res) => {
+app.post("/api/videos/bulkInsert", async (req, res) => {
   const { videos } = req.body;
-
   if (!Array.isArray(videos) || videos.length === 0) {
     return res
       .status(400)
@@ -143,30 +148,16 @@ app.post("/api/videos/bulk", async (req, res) => {
   }
 
   try {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-
-      for (const video of videos) {
-        if (!video.url || !video.category) {
-          throw new Error("Each video must have url and category");
-        }
-
-        await client.query(
-          `INSERT INTO videos (url, category, "createdAt", "updatedAt") 
-           VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-          [video.url, video.category]
-        );
+    for (const video of videos) {
+      if (!video.url || !video.category) {
+        throw new Error("Each video must have url and category");
       }
 
-      await client.query("COMMIT");
-      res.status(201).json({ message: "Videos added successfully" });
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
+      video.videoId = extractVideoId(video.url);
     }
+    await getVideoDetails(videos, process.env.YOUTUBE_API_KEY);
+    await bulkInsertVideos(videos);
+    res.status(201).json({ message: "Videos added successfully" });
   } catch (error) {
     console.error("Error adding videos:", error);
     res.status(500).json({ message: "Internal server error" });

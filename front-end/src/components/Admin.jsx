@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 const Admin = () => {
   const [videos, setVideos] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,7 +22,7 @@ const Admin = () => {
         return { url, category };
       });
 
-      const response = await fetch("http://localhost:3000/api/videos/bulk", {
+      const response = await fetch(`${API_BASE_URL}/videos/bulk`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

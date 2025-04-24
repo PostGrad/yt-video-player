@@ -11,38 +11,30 @@ function extractVideoId(url) {
 }
 
 // Function to get video details from YouTube API
-async function getVideoDetails(videoId, apiKey) {
+async function getVideoDetails(videos, apiKey) {
   try {
     const response = await youtube.videos.list({
       key: apiKey,
-      part: ["snippet", "contentDetails", "status"],
-      id: [videoId],
+      part: ["contentDetails", "status"],
+      id: [videos.map((video) => video.videoId)],
     });
 
     if (!response.data.items || response.data.items.length === 0) {
       throw new Error("Video not found");
     }
 
-    const video = response.data.items[0];
+    response.data.items.forEach((video, index) => {
+      // Get video length in seconds
+      const duration = video.contentDetails.duration;
+      const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+      const hours = match[1] ? parseInt(match[1]) : 0;
+      const minutes = match[2] ? parseInt(match[2]) : 0;
+      const seconds = match[3] ? parseInt(match[3]) : 0;
+      const totalSeconds = hours * 3600 + minutes * 60 + seconds;
 
-    // Check if video is public
-    const isPublic = video.status.privacyStatus === "public";
-
-    // Get video length in seconds
-    const duration = video.contentDetails.duration;
-    const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
-    const hours = match[1] ? parseInt(match[1]) : 0;
-    const minutes = match[2] ? parseInt(match[2]) : 0;
-    const seconds = match[3] ? parseInt(match[3]) : 0;
-    const totalSeconds = hours * 3600 + minutes * 60 + seconds;
-
-    return {
-      isPublic,
-      length: totalSeconds,
-      title: video.snippet.title,
-      description: video.snippet.description,
-      channelTitle: video.snippet.channelTitle,
-    };
+      videos[index].type = video.status.privacyStatus;
+      videos[index].length = totalSeconds;
+    });
   } catch (error) {
     console.error("Error fetching video details:", error);
     throw error;
