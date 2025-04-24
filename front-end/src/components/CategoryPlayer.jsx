@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Title, Text, Loader } from "@mantine/core";
 import Plyr from "plyr-react";
 import "plyr-react/plyr.css";
 
@@ -33,8 +32,8 @@ const CategoryPlayer = ({ category }) => {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-center">
-          <Loader size="xl" className="mb-4" />
-          <Text className="text-gray-600">Loading video...</Text>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading video...</p>
         </div>
       </div>
     );
@@ -44,9 +43,7 @@ const CategoryPlayer = ({ category }) => {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
-          <Text color="red" className="text-center">
-            Error: {error}
-          </Text>
+          <p className="text-red-600 text-center">Error: {error}</p>
         </div>
       </div>
     );
@@ -79,27 +76,24 @@ const CategoryPlayer = ({ category }) => {
   return (
     <div className="min-h-screen bg-gray-100 py-8">
       <div className="container mx-auto px-4">
-        <Title
-          order={1}
-          className="text-3xl font-bold text-center text-gray-800 mb-8"
-        >
+        <h1 className="text-3xl font-bold text-center text-gray-800 mb-8">
           {category.charAt(0).toUpperCase() + category.slice(1)} Videos
-        </Title>
+        </h1>
         {currentVideo ? (
           <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
             <Plyr {...plyrProps} />
             <div className="mt-4">
-              <Text className="text-lg font-semibold text-gray-800">
+              <h2 className="text-lg font-semibold text-gray-800">
                 {currentVideo.title}
-              </Text>
-              <Text className="text-sm text-gray-600">
+              </h2>
+              <p className="text-sm text-gray-600">
                 {currentVideo.channelTitle}
-              </Text>
+              </p>
             </div>
           </div>
         ) : (
           <div className="text-center">
-            <Text className="text-gray-600">No videos available</Text>
+            <p className="text-gray-600">No videos available</p>
           </div>
         )}
       </div>

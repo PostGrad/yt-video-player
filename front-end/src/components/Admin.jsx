@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Title, Text, Button, Textarea, Alert } from "@mantine/core";
 
 const Admin = () => {
   const [videos, setVideos] = useState("");
@@ -44,12 +43,10 @@ const Admin = () => {
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
-      <Title order={1} className="text-2xl font-bold text-gray-800 mb-6">
-        Admin Dashboard
-      </Title>
+      <h1 className="text-2xl font-bold text-gray-800 mb-6">Admin Dashboard</h1>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
-          <Text className="text-gray-600">
+          <p className="text-gray-600">
             Enter videos in the format: URL, category (one per line)
             <br />
             Example:
@@ -57,36 +54,44 @@ const Admin = () => {
             https://youtube.com/watch?v=video1, kirtan
             <br />
             https://youtube.com/watch?v=video2, dhun
-          </Text>
-          <Textarea
-            label="Videos"
+          </p>
+          <textarea
             placeholder="Enter video URLs and categories"
             value={videos}
             onChange={(e) => setVideos(e.target.value)}
-            minRows={10}
+            rows={10}
             required
-            className="w-full"
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <Button
+        <button
           type="submit"
-          loading={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200"
+          disabled={loading}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Upload Videos
-        </Button>
+          {loading ? (
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+              Uploading...
+            </div>
+          ) : (
+            "Upload Videos"
+          )}
+        </button>
       </form>
 
       {error && (
-        <Alert color="red" title="Error" className="mt-4">
-          {error}
-        </Alert>
+        <div className="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+          <p className="font-bold">Error</p>
+          <p>{error}</p>
+        </div>
       )}
 
       {success && (
-        <Alert color="green" title="Success" className="mt-4">
-          Videos uploaded successfully!
-        </Alert>
+        <div className="mt-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
+          <p className="font-bold">Success</p>
+          <p>Videos uploaded successfully!</p>
+        </div>
       )}
     </div>
   );
