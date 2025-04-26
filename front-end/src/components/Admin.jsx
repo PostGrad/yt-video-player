@@ -22,7 +22,7 @@ const Admin = () => {
         return { url, category };
       });
 
-      const response = await fetch(`${API_BASE_URL}/videos/bulk`, {
+      const response = await fetch(`${API_BASE_URL}/videos/bulkInsert`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

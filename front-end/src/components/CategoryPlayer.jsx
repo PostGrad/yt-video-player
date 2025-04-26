@@ -1,23 +1,14 @@
 import { useState, useEffect, useRef } from "react";
-import Plyr from "plyr-react";
-import "plyr-react/plyr.css";
+import ReactPlayer from "react-player";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-// Load YouTube IFrame API once
-if (!window.YT) {
-  const tag = document.createElement("script");
-  tag.src = "https://www.youtube.com/iframe_api";
-  const firstScriptTag = document.getElementsByTagName("script")[0];
-  firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-}
 
 const CategoryPlayer = ({ category }) => {
   const [currentVideo, setCurrentVideo] = useState(null);
   const [nextVideo, setNextVideo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [playerReady, setPlayerReady] = useState(false);
+  const [playing, setPlaying] = useState(true);
   const playerRef = useRef(null);
   const nextVideoTimeoutRef = useRef(null);
 
@@ -43,6 +34,7 @@ const CategoryPlayer = ({ category }) => {
   };
 
   const switchToNextVideo = () => {
+    console.log("Switching to next video");
     if (nextVideo) {
       setCurrentVideo(nextVideo);
       setNextVideo(null);
@@ -60,7 +52,8 @@ const CategoryPlayer = ({ category }) => {
   useEffect(() => {
     const initializePlayer = async () => {
       setLoading(true);
-      setPlayerReady(false);
+      setPlaying(false);
+
       const video = await fetchVideo();
       if (video) {
         setCurrentVideo(video);
@@ -78,58 +71,36 @@ const CategoryPlayer = ({ category }) => {
     };
   }, [category]);
 
-  const handleReady = (player) => {
+  const handleReady = () => {
     console.log("Player ready");
-    setPlayerReady(true);
-    if (player && player.play) {
-      const attemptPlay = () => {
-        player.play().catch((error) => {
-          console.error("Play failed:", error);
-          setTimeout(attemptPlay, 1000);
-        });
-      };
-
-      setTimeout(attemptPlay, 500);
-    }
+    setPlaying(true);
   };
 
-  const handlePlaying = (player) => {
+  const handlePlay = () => {
     console.log("Video playing");
-    if (!player || !playerReady) return;
-
-    try {
-      const playerElement = player.elements.container;
-      if (playerElement && document.fullscreenElement !== playerElement) {
-        setTimeout(() => {
-          if (playerElement.requestFullscreen) {
-            playerElement.requestFullscreen().catch(console.error);
-          } else if (playerElement.webkitRequestFullscreen) {
-            playerElement.webkitRequestFullscreen().catch(console.error);
-          } else if (playerElement.msRequestFullscreen) {
-            playerElement.msRequestFullscreen().catch(console.error);
-          }
-        }, 1000);
+    if (currentVideo?.length) {
+      if (nextVideoTimeoutRef.current) {
+        clearTimeout(nextVideoTimeoutRef.current);
       }
 
-      if (currentVideo?.length) {
-        if (nextVideoTimeoutRef.current) {
-          clearTimeout(nextVideoTimeoutRef.current);
-        }
-
-        const timeUntilNext = Math.max((currentVideo.length - 60) * 1000, 1000);
-        nextVideoTimeoutRef.current = setTimeout(
-          switchToNextVideo,
-          timeUntilNext
-        );
-      }
-    } catch (error) {
-      console.error("Error in playing handler:", error);
+      const timeUntilNext = Math.max((currentVideo.length - 5) * 1000, 1000);
+      console.log(`Setting next video timeout for ${timeUntilNext}ms`);
+      nextVideoTimeoutRef.current = setTimeout(
+        switchToNextVideo,
+        timeUntilNext
+      );
     }
   };
 
   const handleEnded = () => {
     console.log("Video ended");
     switchToNextVideo();
+  };
+
+  const handleProgress = ({ playedSeconds }) => {
+    if (currentVideo?.length && playedSeconds >= currentVideo.length - 5) {
+      switchToNextVideo();
+    }
   };
 
   if (loading) {
@@ -153,54 +124,6 @@ const CategoryPlayer = ({ category }) => {
     );
   }
 
-  const plyrProps = {
-    source: currentVideo
-      ? {
-          type: "video",
-          sources: [
-            {
-              src: currentVideo.url,
-              provider: "youtube",
-            },
-          ],
-        }
-      : null,
-    options: {
-      controls: [
-        "play-large",
-        "play",
-        "progress",
-        "current-time",
-        "mute",
-        "volume",
-        "settings",
-        "fullscreen",
-      ],
-      youtube: {
-        noCookie: false,
-        rel: 0,
-        showinfo: 0,
-        iv_load_policy: 3,
-        modestbranding: 1,
-        playsinline: 1,
-        autoplay: 1,
-        origin: window.location.origin,
-        enablejsapi: 1,
-      },
-      autoplay: true,
-      muted: false,
-      clickToPlay: false,
-      hideControls: true,
-      resetOnEnd: false,
-      debug: true,
-    },
-    eventListeners: {
-      ready: handleReady,
-      playing: handlePlaying,
-      ended: handleEnded,
-    },
-  };
-
   return (
     <div className="min-h-screen bg-gray-100 py-2 font-mono">
       <div className="container mx-auto px-2">
@@ -210,8 +133,36 @@ const CategoryPlayer = ({ category }) => {
         </h1>
         {currentVideo ? (
           <div className="bg-white rounded-lg shadow-lg">
-            <Plyr ref={playerRef} {...plyrProps} />
-            <div className="mt-4">
+            <div className="relative pt-[56.25%]">
+              <ReactPlayer
+                ref={playerRef}
+                url={currentVideo.url}
+                className="absolute top-0 left-0"
+                width="100%"
+                height="100%"
+                playing={playing}
+                controls={true}
+                playsinline
+                onReady={handleReady}
+                onPlay={handlePlay}
+                onEnded={handleEnded}
+                onProgress={handleProgress}
+                config={{
+                  youtube: {
+                    playerVars: {
+                      autoplay: 1,
+                      modestbranding: 1,
+                      rel: 0,
+                      showinfo: 0,
+                      iv_load_policy: 3,
+                      playsinline: 1,
+                      origin: window.location.origin,
+                    },
+                  },
+                }}
+              />
+            </div>
+            <div className="mt-4 p-4">
               <h2 className="text-lg font-semibold text-gray-800 font-mono">
                 {currentVideo.title}
               </h2>
