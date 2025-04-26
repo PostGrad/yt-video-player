@@ -162,14 +162,6 @@ const CategoryPlayer = ({ category }) => {
                 }}
               />
             </div>
-            <div className="mt-4 p-4">
-              <h2 className="text-lg font-semibold text-gray-800 font-mono">
-                {currentVideo.title}
-              </h2>
-              <p className="text-sm text-gray-600 font-mono">
-                {currentVideo.channelTitle}
-              </p>
-            </div>
           </div>
         ) : (
           <div className="text-center">
