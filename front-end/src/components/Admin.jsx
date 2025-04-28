@@ -29,9 +29,10 @@ const Admin = () => {
         },
         body: JSON.stringify({ videos: videoArray }),
       });
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error("Failed to store videos");
+        throw new Error(data.message ?? "Failed to store videos");
       }
 
       setSuccess(true);

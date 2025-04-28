@@ -5,10 +5,10 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const CategoryPlayer = ({ category }) => {
   const [currentVideo, setCurrentVideo] = useState(null);
-  const [nextVideo, setNextVideo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [playing, setPlaying] = useState(true);
+  const [playbackError, setPlaybackError] = useState(false);
   const playerRef = useRef(null);
   const nextVideoTimeoutRef = useRef(null);
 
@@ -28,24 +28,39 @@ const CategoryPlayer = ({ category }) => {
     }
   };
 
-  const loadNextVideo = async () => {
-    const video = await fetchVideo();
-    setNextVideo(video);
+  const markVideoAsPrivate = async (videoId) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/videos/${videoId}/private`,
+        {
+          method: "PUT",
+        }
+      );
+      if (!response.ok) {
+        console.error("Failed to mark video as private");
+      }
+    } catch (err) {
+      console.error("Error marking video as private:", err);
+    }
   };
 
-  const switchToNextVideo = () => {
+  const switchToNextVideo = async () => {
     console.log("Switching to next video");
-    if (nextVideo) {
-      setCurrentVideo(nextVideo);
-      setNextVideo(null);
-      loadNextVideo();
-    } else {
-      fetchVideo().then((video) => {
-        if (video) {
-          setCurrentVideo(video);
-          loadNextVideo();
-        }
-      });
+    setLoading(true);
+    setPlaybackError(false);
+
+    try {
+      const video = await fetchVideo();
+      if (video) {
+        setCurrentVideo(video);
+        setPlaying(true);
+      } else {
+        setError("No more videos available");
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -53,11 +68,12 @@ const CategoryPlayer = ({ category }) => {
     const initializePlayer = async () => {
       setLoading(true);
       setPlaying(false);
+      setPlaybackError(false);
 
       const video = await fetchVideo();
       if (video) {
         setCurrentVideo(video);
-        loadNextVideo();
+        setPlaying(true);
       }
       setLoading(false);
     };
@@ -74,10 +90,12 @@ const CategoryPlayer = ({ category }) => {
   const handleReady = () => {
     console.log("Player ready");
     setPlaying(true);
+    setPlaybackError(false);
   };
 
   const handlePlay = () => {
     console.log("Video playing");
+    setPlaybackError(false);
     if (currentVideo?.length) {
       if (nextVideoTimeoutRef.current) {
         clearTimeout(nextVideoTimeoutRef.current);
@@ -97,10 +115,17 @@ const CategoryPlayer = ({ category }) => {
     switchToNextVideo();
   };
 
-  const handleProgress = ({ playedSeconds }) => {
-    if (currentVideo?.length && playedSeconds >= currentVideo.length - 5) {
-      switchToNextVideo();
+  const handleError = async (error) => {
+    console.error("Playback error:", error);
+    setPlaybackError(true);
+
+    // Mark current video as private if it exists
+    if (currentVideo?.id) {
+      await markVideoAsPrivate(currentVideo.id);
     }
+
+    // Switch to next video
+    switchToNextVideo();
   };
 
   if (loading) {
@@ -119,6 +144,18 @@ const CategoryPlayer = ({ category }) => {
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
           <p className="text-red-600 text-center font-mono">Error: {error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (playbackError) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
+          <p className="text-red-600 text-center font-mono">
+            Error playing video. Switching to next video...
+          </p>
         </div>
       </div>
     );
@@ -146,7 +183,7 @@ const CategoryPlayer = ({ category }) => {
                 onReady={handleReady}
                 onPlay={handlePlay}
                 onEnded={handleEnded}
-                onProgress={handleProgress}
+                onError={handleError}
                 config={{
                   youtube: {
                     playerVars: {

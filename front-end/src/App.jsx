@@ -16,7 +16,7 @@ function App() {
             <div className="min-h-screen">
               <div className="container mx-auto px-4 py-8">
                 <h2 className="text-3xl mb-8 text-center">
-                  Video Player Admin
+                  Swaminarayan Live TV Admin
                 </h2>
                 <div className="flex justify-center space-x-8 mb-12">
                   {categories.map((category) => (
